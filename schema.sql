@@ -1,6 +1,6 @@
 create table employee_job_title
 (
-    job_title_id   uuid primary key,
+    job_title_id   uuid primary key default gen_random_uuid(),
     job_title_name text not null,
 
     constraint chk_job_title_name
@@ -11,10 +11,12 @@ create type gender_enum as enum ('м', 'ж');
 
 create table employee
 (
-    employee_id   uuid primary key,
+    employee_id   uuid primary key default gen_random_uuid(),
     -- тут не нужен not null - у начальника нет начальника
-    supervisor_id uuid references employee (employee_id),
-    job_title_id  uuid        not null references employee_job_title (job_title_id),
+    supervisor_id uuid references employee (employee_id)
+        on update cascade on delete restrict,
+    job_title_id  uuid        not null references employee_job_title (job_title_id)
+        on update cascade on delete restrict,
 
     tin           char(12)    not null unique,
     login         text        not null unique,
@@ -55,9 +57,12 @@ create table monetary_unit
 
 create table exchange_rate
 (
-    exchange_rate_id    uuid primary key,
-    first_currency      varchar(3)      not null references monetary_unit (currency),
-    second_currency     varchar(3)      not null references monetary_unit (currency),
+    exchange_rate_id    uuid primary key default gen_random_uuid(),
+    -- считаем что код валюты неизменяемый всегда
+    first_currency      varchar(3)      not null references monetary_unit (currency)
+        on update restrict on delete restrict,
+    second_currency     varchar(3)      not null references monetary_unit (currency)
+        on update restrict on delete restrict,
     installation_date   date            not null,
     exchange_rate_value numeric(17, 10) not null,
     unique (first_currency, second_currency, installation_date),
@@ -76,15 +81,17 @@ create table exchange_rate
 
 create table report
 (
-    report_id     uuid primary key,
-    supervisor_id uuid not null references employee (employee_id),
+    report_id     uuid primary key default gen_random_uuid(),
+    supervisor_id uuid not null references employee (employee_id)
+        on update cascade on delete restrict,
     creation_date date not null
 );
 
 create table group_of_items
 (
-    group_of_items_id uuid primary key,
-    parental_group_id uuid references group_of_items (group_of_items_id),
+    group_of_items_id uuid primary key default gen_random_uuid(),
+    parental_group_id uuid references group_of_items (group_of_items_id)
+        on update cascade on delete restrict,
     group_name        text not null,
     group_description text,
 
@@ -96,13 +103,15 @@ create table group_of_items
 
 create table item
 (
-    item_id              uuid primary key,
-    item_group           uuid        not null references group_of_items (group_of_items_id),
+    item_id              uuid primary key default gen_random_uuid(),
+    item_group           uuid        not null references group_of_items (group_of_items_id)
+        on update cascade on delete restrict,
     item_name            text        not null,
     certificate_id       varchar(30) not null,
     item_quantity        integer     not null,
     item_id_within_group integer     not null,
-    merchandiser_id      uuid        not null references employee (employee_id),
+    merchandiser_id      uuid        not null references employee (employee_id)
+        on update cascade on delete restrict,
     sku                  char(12)    not null,
     package              text        not null,
     manufacturer_name    text        not null,
@@ -126,9 +135,10 @@ create table item
 
 create table company_category
 (
-    company_category_id        uuid primary key,
+    company_category_id        uuid primary key default gen_random_uuid(),
     company_category_name      text not null,
-    company_category_parent_id uuid references company_category (company_category_id),
+    company_category_parent_id uuid references company_category (company_category_id)
+                                        on update cascade on delete set null,
 
     constraint chk_category_name
         check (btrim(company_category_name) <> ''),
@@ -138,8 +148,10 @@ create table company_category
 
 create table company
 (
-    company_id          uuid primary key,
-    company_category_id uuid        not null references company_category (company_category_id),
+    company_id          uuid primary key default gen_random_uuid(),
+    company_category_id uuid        not null references company_category (company_category_id)
+        -- насчет cascade не уверен
+        on update cascade on delete restrict,
     company_name        text        not null,
     registered_address  text        not null,
     phone_number        char(12)    not null,
@@ -164,13 +176,16 @@ create type commerce_doc_type_enum as enum ('накладная', 'возвра�
 
 create table payment_order
 (
-    payment_order_id         uuid primary key,
-    currency                 varchar(3)              not null references monetary_unit (currency),
-    company_id               uuid                    not null references company (company_id),
+    payment_order_id         uuid primary key default gen_random_uuid(),
+    currency                 varchar(3)              not null references monetary_unit (currency)
+        on update cascade on delete restrict,
+    company_id               uuid                    not null references company (company_id)
+        on update cascade on delete restrict,
     conclusion_date          timestamptz             not null,
     payment_order_type       payment_order_type_enum not null,
     payment_order_id_in_bank text                    not null,
-    accountant_id            uuid                    not null references employee (employee_id),
+    accountant_id            uuid                    not null references employee (employee_id)
+        on update cascade on delete restrict,
     sum                      numeric(12, 3)          not null,
 
     constraint chk_payment_order_sum
@@ -184,17 +199,23 @@ create table payment_order
 
 create table commerce_doc
 (
-    commerce_doc_id        uuid primary key,
-    currency               varchar(3)             not null references monetary_unit (currency),
-    company_id             uuid                   not null references company (company_id),
-    exchange_rate_id       uuid references exchange_rate (exchange_rate_id),
-    payment_order_id       uuid references payment_order (payment_order_id),
+    commerce_doc_id        uuid primary key default gen_random_uuid(),
+    currency               varchar(3)             not null references monetary_unit (currency)
+        on update cascade on delete restrict,
+    company_id             uuid                   not null references company (company_id)
+        on update cascade on delete restrict,
+    exchange_rate_id       uuid references exchange_rate (exchange_rate_id)
+        on update cascade on delete restrict,
+    payment_order_id       uuid references payment_order (payment_order_id)
+        on update cascade on delete restrict,
     preparation_date       timestamptz            not null,
     operation_date         timestamptz,
-    manager_id             uuid                   not null references employee (employee_id),
+    manager_id             uuid                   not null references employee (employee_id)
+        on update cascade on delete restrict,
     commerce_doc_type      commerce_doc_type_enum not null,
     -- если тип тд - возврат то надо знать тд id о заключении
-    origin_commerce_doc_id uuid references commerce_doc (commerce_doc_id),
+    origin_commerce_doc_id uuid references commerce_doc (commerce_doc_id)
+        on update cascade on delete restrict,
 
     constraint chk_commerce_doc_type
         check (
@@ -224,8 +245,10 @@ create table commerce_doc
 
 create table transaction_record
 (
-    item_id         uuid           not null references item (item_id),
-    commerce_doc_id uuid           not null references commerce_doc (commerce_doc_id),
+    item_id         uuid           not null references item (item_id)
+        on update cascade on delete restrict,
+    commerce_doc_id uuid           not null references commerce_doc (commerce_doc_id)
+        on update cascade on delete restrict,
     quantity        integer        not null,
     price           numeric(12, 3) not null,
     primary key (item_id, commerce_doc_id),
